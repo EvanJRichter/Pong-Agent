@@ -14,17 +14,18 @@ ALPHA = 1.0
 EPSILON = 0.05
 
 SIMULATIONS = 1000.0
+STEPS = 1000.0
 
 #Q Representation
 #12x12 grid ball locations, 2 x velocities, 3 y velocities, 12 paddle positions, 3 paddle movements
-q_vals = [[[[[[[0] * 12] * 3] * 2] * 12] * 12] * 3] 
+q_vals = [[[[[[[0] * GRID_SIZE] * 3] * 2] * GRID_SIZE] * 12] * 3] 
 
 #State Variables (start vals)
-ball_x_start = 0.5
-ball_y_start = 0.5
+ball_x_start = GAME_SIZE / 2.0
+ball_y_start = GAME_SIZE / 2.0
 velocity_x_start = 0.03
 velocity_y_start = 0.01
-paddle_y = 0.5 - PADDLE_H / 2 #top of paddle
+paddle_y_start = ball_y_start - PADDLE_H / 2 #top of paddle
 
 # ------ Functions to convert state into Q space ------ #
 
@@ -78,12 +79,23 @@ def get_reward(ball_x, ball_y, vel_x, vel_y, pad_y):
 	return 0
 
 def get_ALPHA(t):
-	return SIMULATIONS / (SIMULATIONS - 1.0 + t)
+	return STEPS / (STEPS - 1.0 + t)
 
-#evaluate paddle movement
-def paddle_move(ball_x, ball_y, vel_x, vel_y, pad_y):
-	#choose where to move
-	return 
+def choose_move(ball_x, ball_y, vel_x, vel_y, pad_y):
+	actions = [0, 1, 2]
+	if random.random() < EPSILON: #exploration factor
+        i = random.choice(actions)
+    else:
+        qs = get_q_futures(ball_x, ball_y, vel_x, vel_y, pad_y)
+        maxQ = max(qs)
+        count = q.count(maxQ)
+        if count > 1:
+            indices = [index for index, val in enumerate(qs) if val == maxQ]
+            i = random.choice(indices)
+        else:
+            i = qs.index(maxQ)
+
+	return i, MOVES[i]
 
 def get_q_futures(ball_x, ball_y, vel_x, vel_y, pad_y):
 	futures = []
@@ -106,15 +118,10 @@ def update_q(ball_x, ball_y, vel_x, vel_y, pad_y, t): #should limit moves
 #Main step
 def step(ball_x, ball_y, vel_x, vel_y, pad_y, stepnum):
 	terminated = False
+	hit_paddle = 0
 	#Increment ball_x by velocity_x and ball_y by velocity_y.
 	ball_x += vel_x
 	ball_y += vel_y
-
-	if (ball_x > PADDLE_X):
-		#terminate!
-		#Update values
-		update_q(ball_x, ball_y, vel_x, vel_y, pad_y, stepnum)
-		return ball_x, ball_y, vel_x, vel_y, pad_y, True #possibly innaccurate because other states haven't updated.
 
 	#Bounce:
 	if (ball_y < 0):
@@ -127,6 +134,7 @@ def step(ball_x, ball_y, vel_x, vel_y, pad_y, stepnum):
 		ball_x = -ball_x
 		vel_x = -vel_x
 	if (is_in_paddle(ball_x, ball_y, pad_y)):
+		hit_paddle += 1
 		ball_x = 2 * PADDLE_X - ball_x
 		vel_x = -vel_x + get_rand_x()
 		vel_y = vel_y + get_rand_y()
@@ -136,18 +144,43 @@ def step(ball_x, ball_y, vel_x, vel_y, pad_y, stepnum):
 			else:
 				vel_x = 0.03	
 
-	#update q of current spot based on future potential rewards
-	update_q(ball_x, ball_y, vel_x, vel_y, pad_y, stepnum)
+	move, moveval = choose_move(ball_x, ball_y, vel_x, vel_y, pad_y)
 
-	#make paddle move
-	pad_y = paddle_move(ball_x, ball_y, vel_x, vel_y, pad_y)
+	#update q of current spot based on future potential rewards
+	update_q(ball_x, ball_y, vel_x, vel_y, pad_y, move, stepnum)
+
+	if (ball_x > PADDLE_X):
+		#terminate!
+		return ball_x, ball_y, vel_x, vel_y, pad_y, hit_paddle, True
 
 	#return updated values and info about termination
-	return ball_x, ball_y, vel_x, vel_y, pad_y, False
+	return ball_x, ball_y, vel_x, vel_y, pad_y + moveval, hit_paddle, False
+
+
+
+# ------ Main stuff ------ #
+
+def run_simulations():
+	for i in xrange(SIMULATIONS):
+		ball_x = ball_x_start
+		ball_y = ball_y_start
+		vel_x = velocity_x_start
+		vel_y = velocity_y_start
+		pad_y =  paddle_y_start
+		paddle_hits = 0
+		hit_paddle = 0
+		stepnum = 0
+		while(True):
+			ball_x, ball_y, vel_x, vel_y, pad_y, hit_paddle, terminated = step(ball_x, ball_y, vel_x, vel_y, pad_y, stepnum)
+			if terminated:
+				break
+			stepnum += 1
+			paddle_hits += hit_paddle
+		print paddle_hits
 
 
 if __name__ == '__main__':
-	#
+	run_simulations()
 
 
 
