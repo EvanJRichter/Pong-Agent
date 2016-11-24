@@ -14,9 +14,9 @@ MOVE_DOWN = -0.04
 MOVES = [MOVE_DOWN, MOVE_STAY, MOVE_UP]
 Y_ZERO_THRESHOLD = 0.015
 
-GAMMA = 0.5
+GAMMA = 0.8
 ALPHA = 60.0
-EPSILON = 10.0
+EPSILON = 1000
 
 SIMULATIONS = 10000
 
@@ -67,12 +67,11 @@ def get_paddle_q(y):
 	return int(math.floor(GRID_SIZE * y) / (1.0 - PADDLE_H))
 
 def get_q_val(x, y, vx, vy, py, m):
-	#print get_loc_q(x), get_loc_q(y), get_xvel_q(vx), get_yvel_q(vy), get_paddle_q(py), m
+	#pri get_loc_q(x), get_loc_q(y), get_xvel_q(vx), get_yvel_q(vy), get_paddle_q(py), m
 
 	return q_vals[get_loc_q(x)][get_loc_q(y)][get_loc_q(vx)][get_loc_q(vy)][get_loc_q(py)][m][0]
 
 def set_q_val(x, y, vx, vy, py, m, v):
-	#print "Setting", 
 	q_vals[get_loc_q(x)][get_loc_q(y)][get_loc_q(vx)][get_loc_q(vy)][get_loc_q(py)][m][0] = v
 	inc_q_visited(x, y, vx, vy, py, m)
 
@@ -81,11 +80,6 @@ def get_q_visited(x, y, vx, vy, py, m):
 
 def inc_q_visited(x, y, vx, vy, py, m):
 	val = q_vals[get_loc_q(x)][get_loc_q(y)][get_loc_q(vx)][get_loc_q(vy)][get_loc_q(py)][m][1]
-	if val > 800:
-		print val, get_loc_q(x), get_loc_q(y), get_xvel_q(vx), get_yvel_q(vy), vy, get_paddle_q(py), m
-		#print q_vals[get_loc_q(x)][get_loc_q(y)][get_loc_q(vx)][get_loc_q(vy)][get_loc_q(py)][m]
-		#print q_vals[get_loc_q(x)+4][get_loc_q(y)][get_loc_q(vx)][get_loc_q(vy)][get_loc_q(py)][m]
-
 	q_vals[get_loc_q(x)][get_loc_q(y)][get_loc_q(vx)][get_loc_q(vy)][get_loc_q(py)][m][1] = val + 1
 
 # ----- Step action ----- #
@@ -102,14 +96,14 @@ def get_rand_x():
 def get_rand_y():
 	return (random.random() * Y_ZERO_THRESHOLD * 4) - Y_ZERO_THRESHOLD * 2
 
-def get_reward(ball_x, ball_y, vel_x, vel_y, pad_y):
-	if is_in_paddle(ball_x, ball_y, pad_y):
-		#print "REWARDING"
-		return 1
-	if ball_x > PADDLE_X:
-		print "UN - REWARDING"
-		return -1
-	return 0
+# def get_reward(ball_x, ball_y, vel_x, vel_y, pad_y):
+# 	if is_in_paddle(ball_x, ball_y, pad_y):
+# 		#print "REWARDING"
+# 		return 1
+# 	if ball_x > PADDLE_X:
+# 		print "UN - REWARDING"
+# 		return -1
+# 	return 0
 
 def get_ALPHA(t):
 	return ALPHA / (ALPHA - 1.0 + t)
@@ -123,10 +117,14 @@ def is_unvisited_move(ball_x, ball_y, vel_x, vel_y, pad_y, move):
 
 def choose_move(ball_x, ball_y, vel_x, vel_y, pad_y):
 	actions = [0, 1, 2]
-	qs = get_q_futures_threshold(ball_x, ball_y, vel_x, vel_y, pad_y)
-	if len(qs) == 0:
-		qs = get_q_futures(ball_x, ball_y, vel_x, vel_y, pad_y)
-	maxQ = max(qs)
+	qt = get_q_futures_threshold(ball_x, ball_y, vel_x, vel_y, pad_y)
+	qs = get_q_futures(ball_x, ball_y, vel_x, vel_y, pad_y)
+	maxQ = 0
+	if len(qt) == 0:
+		maxQ = max(qs)
+	else:
+		maxQ = max(qt)
+
 	count = qs.count(maxQ)
 	if count > 1:
 		indices = [index for index, val in enumerate(qs) if val == maxQ]
@@ -139,34 +137,34 @@ def choose_move(ball_x, ball_y, vel_x, vel_y, pad_y):
 def get_q_futures(ball_x, ball_y, vel_x, vel_y, pad_y):
 	ball_x = ball_x + vel_x
 	ball_y = ball_y + vel_y
-	if ball_x < 0:
-		ball_x = 0
-	if ball_x >= 1:
-		ball_x = 1
-	if ball_y < 0:
-		ball_y = 0
-	if ball_y >= 1:
-		ball_y = 1
+	if ball_x < 0.0:
+		ball_x = 0.0
+	if ball_x >= 1.0:
+		ball_x = 1.0
+	if ball_y < 0.0:
+		ball_y = 0.0
+	if ball_y >= 1.0:
+		ball_y = 1.0
 	futures = []
 	for i, v in enumerate(MOVES):
-		futures.append(get_q_val(ball_x, ball_y, vel_x, vel_y, pad_y, i))
+		futures.append(get_q_val(ball_x, ball_y, vel_x, vel_y, pad_y + MOVES[i], i))
 	return futures
 
-def get_q_futures_threshold(ball_x, ball_y, vel_x, vel_y, pad_y):
-	ball_x = ball_x + vel_x
-	ball_y = ball_y + vel_y
-	if ball_x < 0:
-		ball_x = 0
-	if ball_x >= 1:
-		ball_x = 1
-	if ball_y < 0:
-		ball_y = 0
-	if ball_y >= 1:
-		ball_y = 1
+def get_q_futures_threshold(old_ball_x, old_ball_y, vel_x, vel_y, pad_y):
+	ball_x = old_ball_x + vel_x
+	ball_y = old_ball_y + vel_y
+	if ball_x < 0.0:
+		ball_x = 0.0
+	if ball_x >= 1.0:
+		ball_x = 1.0
+	if ball_y < 0.0:
+		ball_y = 0.0
+	if ball_y >= 1.0:
+		ball_y = 1.0
 	futures = []
 	for i, v in enumerate(MOVES):
-		if is_unvisited_move(ball_x, ball_y, vel_x, vel_y, pad_y, i):
-			futures.append(get_q_val(ball_x, ball_y, vel_x, vel_y, pad_y, i))
+		if is_unvisited_move(old_ball_x, old_ball_y, vel_x, vel_y, pad_y, i):
+			futures.append(get_q_val(ball_x, ball_y, vel_x, vel_y, pad_y + MOVES[i], i))
 	return futures
 
 
@@ -174,13 +172,13 @@ def get_q_futures_threshold(ball_x, ball_y, vel_x, vel_y, pad_y):
 def update_q(ball_x, ball_y, vel_x, vel_y, pad_y, move, r, t): #should limit moves
 	if (ball_x > GAME_SIZE):
 		ball_x = GAME_SIZE
-	if (ball_x < 0):
-		ball_x = 0
+	if (ball_x < 0.0):
+		ball_x = 0.0
 
 	if (ball_y > GAME_SIZE):
 		ball_y = GAME_SIZE
-	if (ball_y < 0):
-		ball_y = 0
+	if (ball_y < 0.0):
+		ball_y = 0.0
 	#for each move: move up, down, stay
 	cur_q = get_q_val(ball_x, ball_y, vel_x, vel_y, pad_y, move)
 	#look at future potential moves
@@ -189,6 +187,7 @@ def update_q(ball_x, ball_y, vel_x, vel_y, pad_y, move, r, t): #should limit mov
 	#if newval > 8.3e-50:
 	#print "Updating val at: ", newval, ball_x, ball_y, pad_y
 	set_q_val(ball_x, ball_y, vel_x, vel_y, pad_y, move, newval)
+	#print cur_q, max(get_q_futures(ball_x, ball_y, vel_x, vel_y, pad_y)), newval, ball_x, ball_y, pad_y
 	return 
 
 def update_all_q(ball_x, ball_y, vel_x, vel_y, pad_y, reward, t):
@@ -219,8 +218,9 @@ def step(ball_x, ball_y, vel_x, vel_y, pad_y, stepnum):
 	if (pad_y + moveval) - (PADDLE_H/2.0) < 0:
 		moveval = (PADDLE_H/2.0) - pad_y
 		
+	#print ball_x, ball_y, pad_y
 	if (is_in_paddle(ball_x, ball_y, pad_y)):
-		update_all_q(ball_x, ball_y, vel_x, vel_y, pad_y, 1.0, stepnum)
+		update_q(ball_x, ball_y, vel_x, vel_y, pad_y, move, 1.0, stepnum)
 		ball_x = 2 * PADDLE_X - ball_x
 		vel_x = -vel_x + get_rand_x()
 		vel_y = vel_y + get_rand_y()
@@ -231,8 +231,8 @@ def step(ball_x, ball_y, vel_x, vel_y, pad_y, stepnum):
 				vel_x = 0.03	
 		return ball_x, ball_y, vel_x, vel_y, pad_y + moveval, 1, False
 	elif (ball_x > PADDLE_X):
-		update_all_q(ball_x, ball_y, vel_x, vel_y, pad_y, -1.0, stepnum)
-		return ball_x, ball_y, vel_x, vel_y, pad_y, 0, True
+		update_q(ball_x, ball_y, vel_x, vel_y, pad_y, move, -1.0, stepnum)
+		return ball_x, ball_y, vel_x, vel_y, pad_y + moveval, 0, True
 	else:
 		update_q(ball_x, ball_y, vel_x, vel_y, pad_y, move, 0.0, stepnum) ###Should update Q with current reward, doesn't happen because bounce occurs before this...
 
@@ -244,6 +244,7 @@ def step(ball_x, ball_y, vel_x, vel_y, pad_y, stepnum):
 # ------ Main stuff ------ #
 
 def run_simulations():
+	max_rebounds = 0
 	for i in xrange(SIMULATIONS):
 		ball_x = ball_x_start
 		ball_y = ball_y_start
@@ -259,9 +260,10 @@ def run_simulations():
 				break
 			stepnum += 1
 			paddle_hits += hit_paddle
-		if paddle_hits > 0:
+		if paddle_hits > max_rebounds:
+			max_rebounds = paddle_hits
 			print paddle_hits
-	print q_vals
+	print "LARGEST REBOUND NUMBER ", max_rebounds
 
 
 if __name__ == '__main__':
