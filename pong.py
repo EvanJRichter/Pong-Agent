@@ -12,11 +12,11 @@ MOVE_UP = 0.04
 MOVE_STAY = 0.0
 MOVE_DOWN = -0.04
 MOVES = [MOVE_DOWN, MOVE_STAY, MOVE_UP]
-Y_ZERO_THRESHOLD = 0.015
+Y_ZERO_THRESHOLD = 0.01
 
 GAMMA = 0.8
-ALPHA = 60.0
-EPSILON = 1000
+ALPHA = 10.0
+EPSILON = 10000
 
 SIMULATIONS = 10000
 
@@ -25,7 +25,7 @@ SIMULATIONS = 10000
 q_vals = [[[[[[
 	[0.0]*2 for i in range(3)] 
 	for i in range(GRID_SIZE)]  
-	for i in range(3) ]  
+	for i in range(3)]  
 	for i in range(2)] 
 	for i in range(GRID_SIZE)] 
 	for i in range(GRID_SIZE)]
@@ -41,7 +41,6 @@ paddle_y_start = ball_y_start - PADDLE_H / 2 #top of paddle
 
 #X/Y_ball convert
 def get_loc_q(v):
-	#print v, v * GRID_SIZE, math.floor(v * GRID_SIZE), int(math.floor(v * GRID_SIZE))
 	r = int(math.floor(v * GRID_SIZE))
 	if r >= GRID_SIZE:
 		return GRID_SIZE - 1
@@ -96,24 +95,22 @@ def get_rand_x():
 def get_rand_y():
 	return (random.random() * Y_ZERO_THRESHOLD * 4) - Y_ZERO_THRESHOLD * 2
 
-# def get_reward(ball_x, ball_y, vel_x, vel_y, pad_y):
-# 	if is_in_paddle(ball_x, ball_y, pad_y):
-# 		#print "REWARDING"
-# 		return 1
-# 	if ball_x > PADDLE_X:
-# 		print "UN - REWARDING"
-# 		return -1
-# 	return 0
-
-def get_ALPHA(t):
-	return ALPHA / (ALPHA - 1.0 + t)
+def get_ALPHA(ball_x, ball_y, vel_x, vel_y, pad_y, move):
+	if ball_x < 0.0:
+		ball_x = 0.0
+	if ball_x >= 1.0:
+		ball_x = 1.0
+	if ball_y < 0.0:
+		ball_y = 0.0
+	if ball_y >= 1.0:
+		ball_y = 1.0
+	t = get_q_visited(ball_x, ball_y, vel_x, vel_y, pad_y + MOVES[move], move)
+	return ALPHA / (ALPHA + t)
 
 def is_unvisited_move(ball_x, ball_y, vel_x, vel_y, pad_y, move):
 	if get_q_visited(ball_x, ball_y, vel_x, vel_y, pad_y, move) < EPSILON:
 		return True
 	return False
-
-
 
 def choose_move(ball_x, ball_y, vel_x, vel_y, pad_y):
 	actions = [0, 1, 2]
@@ -183,11 +180,8 @@ def update_q(ball_x, ball_y, vel_x, vel_y, pad_y, move, r, t): #should limit mov
 	cur_q = get_q_val(ball_x, ball_y, vel_x, vel_y, pad_y, move)
 	#look at future potential moves
 	g = (GAMMA * max(get_q_futures(ball_x, ball_y, vel_x, vel_y, pad_y)))
-	newval = (cur_q + (get_ALPHA(t) * (r + g - cur_q) ) )
-	#if newval > 8.3e-50:
-	#print "Updating val at: ", newval, ball_x, ball_y, pad_y
+	newval = (cur_q + (get_ALPHA(ball_x, ball_y, vel_x, vel_y, pad_y, move) * (r + g - cur_q) ) )
 	set_q_val(ball_x, ball_y, vel_x, vel_y, pad_y, move, newval)
-	#print cur_q, max(get_q_futures(ball_x, ball_y, vel_x, vel_y, pad_y)), newval, ball_x, ball_y, pad_y
 	return 
 
 def update_all_q(ball_x, ball_y, vel_x, vel_y, pad_y, reward, t):
@@ -218,7 +212,6 @@ def step(ball_x, ball_y, vel_x, vel_y, pad_y, stepnum):
 	if (pad_y + moveval) - (PADDLE_H/2.0) < 0:
 		moveval = (PADDLE_H/2.0) - pad_y
 		
-	#print ball_x, ball_y, pad_y
 	if (is_in_paddle(ball_x, ball_y, pad_y)):
 		update_q(ball_x, ball_y, vel_x, vel_y, pad_y, move, 1.0, stepnum)
 		ball_x = 2 * PADDLE_X - ball_x
@@ -245,6 +238,10 @@ def step(ball_x, ball_y, vel_x, vel_y, pad_y, stepnum):
 
 def run_simulations():
 	max_rebounds = 0
+	convergence_threshold = 10
+	bounces_total = 0.0
+	bounces_sims = 1.0
+	sims_to_reach_threshold = -1
 	for i in xrange(SIMULATIONS):
 		ball_x = ball_x_start
 		ball_y = ball_y_start
@@ -263,10 +260,25 @@ def run_simulations():
 		if paddle_hits > max_rebounds:
 			max_rebounds = paddle_hits
 			print paddle_hits
+		if max_rebounds > convergence_threshold:
+			bounces_total += paddle_hits
+			bounces_sims += 1
+			if sims_to_reach_threshold < 0:
+				sims_to_reach_threshold = i
+	print "--------------------------------------------"
+	print "STATS: SIMULATIONS:", SIMULATIONS, "GAMMA", GAMMA, "EPSILON:", EPSILON, "ALPHA: ", ALPHA
 	print "LARGEST REBOUND NUMBER ", max_rebounds
+	print "AVERAGE BOUNCES POST CONVERGE  ", (bounces_total / bounces_sims)
+	print "SIMULATIONS TO CONVERGE  ", sims_to_reach_threshold
 
 
 if __name__ == '__main__':
+	# if len(sys.argv) == 6:
+	# 	SIMULATIONS = sys.argv[1]
+	# 	GRID_SIZE = sys.argv[2]
+	# 	GAMMA = sys.argv[3]
+	# 	ALPHA = sys.argv[4]
+	# 	EPSILON = sys.argv[5]
 	run_simulations()
 
 
