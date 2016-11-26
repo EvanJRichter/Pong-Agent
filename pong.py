@@ -12,7 +12,7 @@ MOVE_UP = 0.04
 MOVE_STAY = 0.0
 MOVE_DOWN = -0.04
 MOVES = [MOVE_DOWN, MOVE_STAY, MOVE_UP]
-Y_ZERO_THRESHOLD = 0.01
+Y_ZERO_THRESHOLD = 0.001
 
 GAMMA = 0.8
 ALPHA = 10.0
@@ -237,11 +237,13 @@ def step(ball_x, ball_y, vel_x, vel_y, pad_y, stepnum):
 # ------ Main stuff ------ #
 
 def run_simulations():
+	print "--------------------------------------------"
 	max_rebounds = 0
 	convergence_threshold = 10
 	bounces_total = 0.0
 	bounces_sims = 1.0
-	sims_to_reach_threshold = -1
+	sims_to_reach_first_threshold = -1
+	sims_to_reach_current_threshold = -1
 	for i in xrange(SIMULATIONS):
 		ball_x = ball_x_start
 		ball_y = ball_y_start
@@ -259,17 +261,20 @@ def run_simulations():
 			paddle_hits += hit_paddle
 		if paddle_hits > max_rebounds:
 			max_rebounds = paddle_hits
+			sims_to_reach_current_threshold = i
 			print paddle_hits
 		if max_rebounds > convergence_threshold:
 			bounces_total += paddle_hits
 			bounces_sims += 1
-			if sims_to_reach_threshold < 0:
-				sims_to_reach_threshold = i
-	print "--------------------------------------------"
-	print "STATS: SIMULATIONS:", SIMULATIONS, "GAMMA", GAMMA, "EPSILON:", EPSILON, "ALPHA: ", ALPHA
+			if sims_to_reach_first_threshold < 0:
+				sims_to_reach_first_threshold = i
+	print "---------------- STATS ---------------------"
+	print "SIMULATIONS:", SIMULATIONS, "GAMMA", GAMMA, "EPSILON:", EPSILON, "ALPHA: ", ALPHA
 	print "LARGEST REBOUND NUMBER ", max_rebounds
 	print "AVERAGE BOUNCES POST CONVERGE  ", (bounces_total / bounces_sims)
-	print "SIMULATIONS TO CONVERGE  ", sims_to_reach_threshold
+	print "SIMULATIONS TO CONVERGE  ", sims_to_reach_first_threshold
+	print "SIMULATIONS TO GET HIGHEST NUMBER ", sims_to_reach_current_threshold
+	print "--------------------------------------------"
 
 
 if __name__ == '__main__':
